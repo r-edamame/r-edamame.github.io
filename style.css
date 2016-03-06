@@ -1,0 +1,28 @@
+
+body{
+    text-align: center;
+    margin: 0 auto;
+}
+
+header{
+    margin-top: 10px;
+    background: skyblue;
+}
+
+.container-main{
+    
+}
+
+ul{
+    list-style: none;
+}
+.self{
+    width: 200px;
+    margin:0 auto;
+    text-align: left;
+}
+
+footer{
+    margin-bottom: 10px;
+    background: skyblue;
+}
