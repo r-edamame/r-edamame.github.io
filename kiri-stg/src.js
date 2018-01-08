@@ -1,4 +1,107 @@
 
+const initMouse = (cnv)=>{
+	const mouseState = {
+		pos: Vector(0, 0),
+		lbutton: false
+	};
+
+	window.addEventListener("mousemove", e=>{
+		bcr = cnv.getBoundingClientRect();
+		mouseState.pos.x = e.clientX - bcr.left;
+		mouseState.pos.y = e.clientY - bcr.top;
+	});
+
+	window.addEventListener("mousedown", e=>{
+		mouseState.lbutton = true;
+	});
+
+	window.addEventListener("mouseup", e=>{
+		mouseState.lbutton = false;
+	});
+
+	return mouseState;
+}
+const initKeyStates = ()=>{
+	const keyStates = {};
+
+	window.addEventListener("keydown", key=>{
+		keyStates[key.keyCode] = true;
+	});
+
+	window.addEventListener("keyup", key=>{
+		keyStates[key.keyCode] = false;
+	})
+
+	return keyStates;
+};
+
+const keys = 
+	Object.freeze({ up: 38
+	, down: 40
+	, right: 39
+	, left: 37
+	, space: 32
+	, esc: 27
+	, r: 82
+	, w: 87
+	, s: 83
+	, t: 84
+	});
+	
+class Sound {
+	constructor(url){
+		this.src = url;
+		this.audio = new Audio(url);
+		this.playing = [];
+	}
+	play(conf){
+		this.audio.addEventListener("ended", e=>{
+			this.playing.shift();
+		});
+
+		conf = conf || {};
+		this.audio.volume = conf.volume || 1.0;
+		this.audio.play();
+		this.playing.push(this.audio);
+		
+		this.audio = new Audio(this.src);
+	}
+
+	stop(){
+		this.playing.forEach(e=>{
+			e.pause();
+		});
+		this.playing = [];
+	}
+
+	loopPlay(){
+		this.audio.loop = true;
+		this.play();
+	}
+}
+const clearCanvas = (ctx, cnv, color)=>{
+	const col = color || "white";
+
+	ctx.save();
+	ctx.fillStyle = col;
+	ctx.fillRect(0,0,cnv.width, cnv.height);
+	ctx.restore();
+}
+
+const drawNumber = (ctx, numbers, pos, size, num) => {
+	const numarray = [];
+
+	for(let i=num; i>0; i=Math.floor(i/10)){
+		numarray.push(i%10);
+	}
+	if(numarray.length==0){
+		numarray.push(0);
+	}
+
+	numarray.forEach((n,i)=>{
+		ctx.drawImage(numbers, n%5*100, Math.floor(n/5)*160, 100,160, pos.x-(i*size.x), pos.y, size.x, size.y);
+	});
+}
 class RectCollider{
 	constructor(pos, size){
 		this.pos = pos;
@@ -106,6 +209,110 @@ const isCollide = (obja, objb)=>{
 		}
 	}
 }
+const Vector = (x,y) => ({x:x, y:y});
+const move = (pos, delta)=>Vector(pos.x+delta.x, pos.y+delta.y);
+const sqr = x=>(x*x);
+const distance = (v1,v2) => Math.sqrt(sqr(v1.x-v2.x) + sqr(v1.y-v2.y));
+const vadd = (v1, v2) => Vector(v1.x+v2.x, v1.y+v2.y);
+const vsub = (v1, v2) => Vector(v1.x-v2.x, v1.y-v2.y);
+const vscale = (v, s) => Vector(v.x*s, v.y*s);
+const vlength = v => Math.sqrt(v.x*v.x + v.y*v.y)
+const vunit = v => vscale( v, 1/vlength(v) );
+const vrotate = (v, angle) => Vector(v.x*Math.cos(angle)-v.y*Math.sin(angle), v.x*Math.sin(angle)+v.y*Math.cos(angle));
+class Scene {
+	constructor(){
+	}
+
+	update(){
+		return null;
+	}
+
+	draw(){
+	}
+	
+	draw(resources){
+
+		clearCanvas(resources.canvasCtx, resources.canvas, "white");
+
+		this.objects.forEach(obj=>{
+			resources.canvasCtx.save();
+			resources.canvasCtx.translate(obj.pos.x, obj.pos.y);
+			obj.draw(resources.canvasCtx, resources.images);
+			resources.canvasCtx.restore();
+		});
+
+		if (this.player) {
+			resources.canvasCtx.save();
+			resources.canvasCtx.translate(this.player.pos.x, this.player.pos.y);
+			this.player.draw(resources.canvasCtx, resources.images);
+			resources.canvasCtx.restore();
+		}
+	}
+
+	updateObjects(resources, inputs){
+		const newObjs = [];
+
+		if (this.player) {
+			const result = this.player.update(resources, inputs);
+			(result.newObjects || []).forEach(e =>{newObjs.push(e)});
+		}
+
+		this.objects.forEach(obj=>{
+			const result = obj.update(resources, inputs);
+			(result.newObjects || []).forEach(e => {newObjs.push(e)});
+		});
+
+		this.objects = this.objects.filter(obj=>(!obj.dead));
+		Array.prototype.push.apply(this.objects, newObjs);
+	}
+
+	collisionCheck(){
+
+		if(this.player){
+			this.objects.forEach(e=>{
+				if (isCollide(this.player, e)) {
+					this.player.onCollide(e);
+					e.onCollide(this.player);
+				}
+			})
+		}
+
+		for(let i=0; i<this.objects.length-1; i++){
+			for(let j=i+1; j<this.objects.length; j++){
+				if(isCollide(this.objects[i], this.objects[j])){
+					this.objects[i].onCollide(this.objects[j]);
+					this.objects[j].onCollide(this.objects[i]);
+				}
+			}
+		}
+	}
+}
+class GameObject {
+	constructor(pos, tag, collider){
+		this.pos = Object.assign({}, pos);
+		this.tag = tag;
+		this.collider = collider;
+		this.dead = false;
+	}
+
+	onCollide(obj){
+	}
+
+	update(resources, gameObjects){
+		return {};
+	}
+
+	draw(ctx){
+	}
+
+	updateTimers(){
+		Object.entries(this.timers).forEach( t=>{
+			if( t[1] > 0 ){
+				this.timers[t[0]] = t[1]-1;
+			}
+		})
+	}
+}
 /*
  images = { imageName1 : url1, imageName2 : url2, ... }
 */
@@ -181,75 +388,6 @@ class Game {
 	}
 
 }
-class GameoverScene extends Scene {
-
-	constructor(player){
-		super();
-		this.player = player;
-		this.objects = [];
-		this.score = player.score;
-		this.flag =
-			{ comment : false
-			};
-	}
-
-	update(resources, inputs){
-		if(!this.flag.comment){
-			if(this.score>45){
-				resources.sounds.excellent.play();
-			}else if(this.score>20){
-				resources.sounds.well.play();
-			}else{
-				resources.sounds.bad.play();
-			}
-			this.flag.comment=true;
-		}
-
-		if(inputs.keyStates[keys.esc]){
-			return new StartScene();
-		}
-		return null;
-	}
-
-	draw(res){
-		res.canvasCtx.save();
-		clearCanvas(res.canvasCtx, res.canvas, "white");
-		res.canvasCtx.drawImage(res.images.kiritan_big, 50,200, 200, 200);
-		res.canvasCtx.drawImage(res.images.result, 50,80, 200, 100);
-		res.canvasCtx.drawImage(res.images.ko, 500, 250, 100, 100);
-		drawNumber(res.canvasCtx, res.images.numbers, Vector(500,100), Vector(100,160), this.score);
-		res.canvasCtx.fillStyle="gray";
-		res.canvasCtx.fillText("press ESC to back", 190,400);
-		res.canvasCtx.restore();
-	}
-}
-const initKeyStates = ()=>{
-	const keyStates = {};
-
-	window.addEventListener("keydown", key=>{
-		keyStates[key.keyCode] = true;
-	});
-
-	window.addEventListener("keyup", key=>{
-		keyStates[key.keyCode] = false;
-	})
-
-	return keyStates;
-};
-
-const keys = 
-	Object.freeze({ up: 38
-	, down: 40
-	, right: 39
-	, left: 37
-	, space: 32
-	, esc: 27
-	, r: 82
-	, w: 87
-	, s: 83
-	, t: 84
-	});
-	
 class Kiritan extends GameObject {
 	constructor(pos){
 		super(pos, "kiritan", 
@@ -448,348 +586,6 @@ class Kiritan extends GameObject {
 
 Kiritan.size = Vector(100,100);
 
-const images = {
-	kiritan:        "img/kiritan_sized.png",
-	kiritan_big:    "img/kiritan.png",
-	mochi:          "img/mochi_sized.png",
-	zunko_angry:    "img/zunko_angry_sized.png",
-	zunko_sleep:    "img/zunko_sleep_sized.png",
-	numbers:        "img/numbers.png",
-	ko:             "img/ko.png",
-	result:         "img/result.png",
-	logo:           "img/logo.png",
-}
-
-const sounds = {
-	start: 	    "sound/start.mp3",
-	titlecall: 	"sound/titlecall.mp3",
-	shoot: 	    "sound/shoot.mp3",
-	//fullBurst: 	"sound/fullburst.mp3",
-	z:          "sound/z.mp3",
-	bad:        "sound/bad.mp3",
-	well:       "sound/well.mp3",
-	excellent: 	"sound/excellent.mp3"
-}
-
-window.addEventListener("load", ()=>{
-	const canvas = document.getElementById("canvas");
-	if( !canvas ){
-		console.log("canvas does not found");
-	} else {
-		const game = new Game({
-			images: images,
-			sounds: sounds,
-			initScene : new StartScene(),
-			canvas: canvas
-		});
-
-		game.run();
-	}
-});
-
-class MainScene extends Scene {
-
-	constructor(player, objects){
-		super();
-		this.player = player;
-		this.objects = objects;
-		this.timer = 3000;
-	}
-
-	update(resources, inputs){
-
-		this.timer--;
-
-		this.updateObjects(resources, inputs);
-
-		this.collisionCheck();
-
-		if (this.timer <= 0){
-			return new GameoverScene(this.player);
-		} else {
-			return null;
-		}
-	}
-}
-class Mochi extends GameObject {
-	constructor(pos, speed, parent){
-		super(pos, "mochi", new CircleCollider(Vector(21,21),15));
-		
-		this.parent = parent;
-		this.size = Mochi.size;
-		this.rad = 25;
-		this.accel = Vector(0, 0.1);
-		this.state =
-			{ speed : speed
-			}
-	}
-
-	update(res){
-
-		this.state.speed.y += this.accel.y;
-
-		this.pos = move(this.pos, this.state.speed);
-
-		if( this.pos.y > res.canvas.height){
-			this.dead = true;
-		}
-
-		return {};
-	}
-
-	draw(ctx, imgs){
-		ctx.save();
-		const img = imgs.mochi;
-		ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, this.size.x, this.size.y);
-		ctx.restore();
-	}
-
-	onCollide(obj){
-		if(obj.tag === "zunko"){
-			this.dead = true;
-			this.parent.hit();
-		}
-	}
-}
-
-Mochi.size = Vector(50,50);
-const initMouse = (cnv)=>{
-	const mouseState = {
-		pos: Vector(0, 0),
-		lbutton: false
-	};
-
-	window.addEventListener("mousemove", e=>{
-		bcr = cnv.getBoundingClientRect();
-		mouseState.pos.x = e.clientX - bcr.left;
-		mouseState.pos.y = e.clientY - bcr.top;
-	});
-
-	window.addEventListener("mousedown", e=>{
-		mouseState.lbutton = true;
-	});
-
-	window.addEventListener("mouseup", e=>{
-		mouseState.lbutton = false;
-	});
-
-	return mouseState;
-}
-class GameObject {
-	constructor(pos, tag, collider){
-		this.pos = Object.assign({}, pos);
-		this.tag = tag;
-		this.collider = collider;
-		this.dead = false;
-	}
-
-	onCollide(obj){
-	}
-
-	update(resources, gameObjects){
-		return {};
-	}
-
-	draw(ctx){
-	}
-
-	updateTimers(){
-		Object.entries(this.timers).forEach( t=>{
-			if( t[1] > 0 ){
-				this.timers[t[0]] = t[1]-1;
-			}
-		})
-	}
-}
-class Scene {
-	constructor(){
-	}
-
-	update(){
-		return null;
-	}
-
-	draw(){
-	}
-	
-	draw(resources){
-
-		clearCanvas(resources.canvasCtx, resources.canvas, "white");
-
-		this.objects.forEach(obj=>{
-			resources.canvasCtx.save();
-			resources.canvasCtx.translate(obj.pos.x, obj.pos.y);
-			obj.draw(resources.canvasCtx, resources.images);
-			resources.canvasCtx.restore();
-		});
-
-		if (this.player) {
-			resources.canvasCtx.save();
-			resources.canvasCtx.translate(this.player.pos.x, this.player.pos.y);
-			this.player.draw(resources.canvasCtx, resources.images);
-			resources.canvasCtx.restore();
-		}
-	}
-
-	updateObjects(resources, inputs){
-		const newObjs = [];
-
-		if (this.player) {
-			const result = this.player.update(resources, inputs);
-			(result.newObjects || []).forEach(e =>{newObjs.push(e)});
-		}
-
-		this.objects.forEach(obj=>{
-			const result = obj.update(resources, inputs);
-			(result.newObjects || []).forEach(e => {newObjs.push(e)});
-		});
-
-		this.objects = this.objects.filter(obj=>(!obj.dead));
-		Array.prototype.push.apply(this.objects, newObjs);
-	}
-
-	collisionCheck(){
-
-		if(this.player){
-			this.objects.forEach(e=>{
-				if (isCollide(this.player, e)) {
-					this.player.onCollide(e);
-					e.onCollide(this.player);
-				}
-			})
-		}
-
-		for(let i=0; i<this.objects.length-1; i++){
-			for(let j=i+1; j<this.objects.length; j++){
-				if(isCollide(this.objects[i], this.objects[j])){
-					this.objects[i].onCollide(this.objects[j]);
-					this.objects[j].onCollide(this.objects[i]);
-				}
-			}
-		}
-	}
-}
-class Sound {
-	constructor(url){
-		this.src = url;
-		this.audio = new Audio(url);
-		this.playing = [];
-	}
-	play(conf){
-		this.audio.addEventListener("ended", e=>{
-			this.playing.shift();
-		});
-
-		conf = conf || {};
-		this.audio.volume = conf.volume || 1.0;
-		this.audio.play();
-		this.playing.push(this.audio);
-		
-		this.audio = new Audio(this.src);
-	}
-
-	stop(){
-		this.playing.forEach(e=>{
-			e.pause();
-		});
-		this.playing = [];
-	}
-
-	loopPlay(){
-		this.audio.loop = true;
-		this.play();
-	}
-}
-class StartScene {
-	constructor(){
-		this.starting = false;
-		this.timer = 0;
-		this.mouse = null;
-		this.titlecall = false;
-	}
-
-	update(res, inputs){
-
-		if(!this.titlecall){
-			res.sounds.titlecall.play();
-			this.titlecall=true;
-		}
-
-		if(this.timer > 0){
-			this.timer--;
-		}
-
-		this.mouse = inputs.mouseState;
-
-		if(!this.starting && inputs.keyStates[keys.space]){
-			this.starting = true;
-			res.sounds.start.play();
-			this.timer = 100;
-		}
-
-		if(this.starting && this.timer<=0){
-			return new MainScene(new Kiritan(Vector(500,300)), [new ZunkoFactory()]);
-		}
-
-		return null;
-	}
-	draw(res){
-		const ctx = res.canvasCtx;
-
-		clearCanvas(ctx, res.canvas);
-
-		ctx.save();
-		ctx.drawImage(res.images.logo, 20, 20);
-		ctx.restore();
-
-		ctx.save();
-		ctx.fillStyle = "gray";
-		ctx.font = "30px 'Arial'";
-		ctx.fillText("press space key", 200,400);
-
-		if( this.mouse ){
-			ctx.save();
-			ctx.fillStyle = "red";
-			ctx.beginPath();
-			ctx.arc(this.mouse.pos.x, this.mouse.pos.y, 10, 0, Math.PI*2, false);
-			ctx.fill();
-			ctx.restore();
-		}
-	}
-}
-const clearCanvas = (ctx, cnv, color)=>{
-	const col = color || "white";
-
-	ctx.save();
-	ctx.fillStyle = col;
-	ctx.fillRect(0,0,cnv.width, cnv.height);
-	ctx.restore();
-}
-
-const drawNumber = (ctx, numbers, pos, size, num) => {
-	const numarray = [];
-
-	for(let i=num; i>0; i=Math.floor(i/10)){
-		numarray.push(i%10);
-	}
-	if(numarray.length==0){
-		numarray.push(0);
-	}
-
-	numarray.forEach((n,i)=>{
-		ctx.drawImage(numbers, n%5*100, Math.floor(n/5)*160, 100,160, pos.x-(i*size.x), pos.y, size.x, size.y);
-	});
-}
-const Vector = (x,y) => ({x:x, y:y});
-const move = (pos, delta)=>Vector(pos.x+delta.x, pos.y+delta.y);
-const sqr = x=>(x*x);
-const distance = (v1,v2) => Math.sqrt(sqr(v1.x-v2.x) + sqr(v1.y-v2.y));
-const vadd = (v1, v2) => Vector(v1.x+v2.x, v1.y+v2.y);
-const vsub = (v1, v2) => Vector(v1.x-v2.x, v1.y-v2.y);
-const vscale = (v, s) => Vector(v.x*s, v.y*s);
-const vlength = v => Math.sqrt(v.x*v.x + v.y*v.y)
-const vunit = v => vscale( v, 1/vlength(v) );
-const vrotate = (v, angle) => Vector(v.x*Math.cos(angle)-v.y*Math.sin(angle), v.x*Math.sin(angle)+v.y*Math.cos(angle));
 class Zunko extends GameObject {
 	constructor(pos, res){
 		//super(pos, "zunko", RectCollider(Vector(91)(68))(16)(11));
@@ -881,3 +677,206 @@ class ZunkoFactory extends GameObject {
 		return { newObjects: newObjs };
 	}
 }
+class Mochi extends GameObject {
+	constructor(pos, speed, parent){
+		super(pos, "mochi", new CircleCollider(Vector(21,21),15));
+		
+		this.parent = parent;
+		this.size = Mochi.size;
+		this.rad = 25;
+		this.accel = Vector(0, 0.1);
+		this.state =
+			{ speed : speed
+			}
+	}
+
+	update(res){
+
+		this.state.speed.y += this.accel.y;
+
+		this.pos = move(this.pos, this.state.speed);
+
+		if( this.pos.y > res.canvas.height){
+			this.dead = true;
+		}
+
+		return {};
+	}
+
+	draw(ctx, imgs){
+		ctx.save();
+		const img = imgs.mochi;
+		ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, this.size.x, this.size.y);
+		ctx.restore();
+	}
+
+	onCollide(obj){
+		if(obj.tag === "zunko"){
+			this.dead = true;
+			this.parent.hit();
+		}
+	}
+}
+
+Mochi.size = Vector(50,50);
+class StartScene {
+	constructor(){
+		this.starting = false;
+		this.timer = 0;
+		this.mouse = null;
+		this.titlecall = false;
+	}
+
+	update(res, inputs){
+
+		if(!this.titlecall){
+			res.sounds.titlecall.play();
+			this.titlecall=true;
+		}
+
+		if(this.timer > 0){
+			this.timer--;
+		}
+
+		this.mouse = inputs.mouseState;
+
+		if(!this.starting && inputs.keyStates[keys.space]){
+			this.starting = true;
+			res.sounds.start.play();
+			this.timer = 100;
+		}
+
+		if(this.starting && this.timer<=0){
+			return new MainScene(new Kiritan(Vector(500,300)), [new ZunkoFactory()]);
+		}
+
+		return null;
+	}
+	draw(res){
+		const ctx = res.canvasCtx;
+
+		clearCanvas(ctx, res.canvas);
+
+		ctx.save();
+		ctx.drawImage(res.images.logo, 20, 20);
+		ctx.restore();
+
+		ctx.save();
+		ctx.fillStyle = "gray";
+		ctx.font = "30px 'Arial'";
+		ctx.fillText("press space key", 200,400);
+
+		if( this.mouse ){
+			ctx.save();
+			ctx.fillStyle = "red";
+			ctx.beginPath();
+			ctx.arc(this.mouse.pos.x, this.mouse.pos.y, 10, 0, Math.PI*2, false);
+			ctx.fill();
+			ctx.restore();
+		}
+	}
+}
+class MainScene extends Scene {
+
+	constructor(player, objects){
+		super();
+		this.player = player;
+		this.objects = objects;
+		this.timer = 3000;
+	}
+
+	update(resources, inputs){
+
+		this.timer--;
+
+		this.updateObjects(resources, inputs);
+
+		this.collisionCheck();
+
+		if (this.timer <= 0){
+			return new GameoverScene(this.player);
+		} else {
+			return null;
+		}
+	}
+}
+class GameoverScene extends Scene {
+
+	constructor(player){
+		super();
+		this.player = player;
+		this.objects = [];
+		this.score = player.score;
+		this.flag =
+			{ comment : false
+			};
+	}
+
+	update(resources, inputs){
+		if(!this.flag.comment){
+			if(this.score>45){
+				resources.sounds.excellent.play();
+			}else if(this.score>20){
+				resources.sounds.well.play();
+			}else{
+				resources.sounds.bad.play();
+			}
+			this.flag.comment=true;
+		}
+
+		if(inputs.keyStates[keys.esc]){
+			return new StartScene();
+		}
+		return null;
+	}
+
+	draw(res){
+		res.canvasCtx.save();
+		clearCanvas(res.canvasCtx, res.canvas, "white");
+		res.canvasCtx.drawImage(res.images.kiritan_big, 50,200, 200, 200);
+		res.canvasCtx.drawImage(res.images.result, 50,80, 200, 100);
+		res.canvasCtx.drawImage(res.images.ko, 500, 250, 100, 100);
+		drawNumber(res.canvasCtx, res.images.numbers, Vector(500,100), Vector(100,160), this.score);
+		res.canvasCtx.fillStyle="gray";
+		res.canvasCtx.fillText("press ESC to back", 190,400);
+		res.canvasCtx.restore();
+	}
+}
+const images = {
+	kiritan:        "img/kiritan_sized.png",
+	kiritan_big:    "img/kiritan.png",
+	mochi:          "img/mochi_sized.png",
+	zunko_angry:    "img/zunko_angry_sized.png",
+	zunko_sleep:    "img/zunko_sleep_sized.png",
+	numbers:        "img/numbers.png",
+	ko:             "img/ko.png",
+	result:         "img/result.png",
+	logo:           "img/logo.png",
+}
+
+const sounds = {
+	start: 	    "sound/start.mp3",
+	titlecall: 	"sound/titlecall.mp3",
+	shoot: 	    "sound/shoot.mp3",
+	//fullBurst: 	"sound/fullburst.mp3",
+	z:          "sound/z.mp3",
+	bad:        "sound/bad.mp3",
+	well:       "sound/well.mp3",
+	excellent: 	"sound/excellent.mp3"
+}
+
+window.addEventListener("load", ()=>{
+	const canvas = document.getElementById("canvas");
+	if( !canvas ){
+		console.log("canvas does not found");
+	} else {
+		const game = new Game({
+			images: images,
+			sounds: sounds,
+			initScene : new StartScene(),
+			canvas: canvas
+		});
+
+		game.run();
+	}
+});
