@@ -772,7 +772,7 @@ class Kiritan extends GameObject {
         this.updateTimers();
 
         if(this.pos.y < corectl.height()-this.size.y){
-            this.pos.y += 0.3;
+            this.pos.y += 4;
             if(this.pos.y > corectl.height()-this.size.y){
                 this.pos.y = corectl.height()-this.size.y;
             }
@@ -817,6 +817,7 @@ class Kiritan extends GameObject {
 }
 
 Kiritan.size = Vector(100,100);
+
 class Mochi extends GameObject {
     constructor(pos, speed){
         super(pos, "mochi", new CircleCollider(Vector(21,21),20));
