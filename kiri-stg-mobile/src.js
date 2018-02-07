@@ -937,7 +937,6 @@ class InitScene extends Scene {
     }
 
     init(ctl){
-        console.log("titlecall");
         ctl.sound("titlecall").play();
     }
 
@@ -950,7 +949,6 @@ class InitScene extends Scene {
     }
 
     onTouchStart(ctl){
-        console.log("touch");
         if(!this.flags.tapped){
             this.flags.tapped = true;
             ctl.sound("start").play();
@@ -965,6 +963,7 @@ class InitScene extends Scene {
         ctl.text("tap to start", 350, 370, "gray", 30);
     }
 }
+
 class MainScene extends Scene {
     constructor(){
         super();
@@ -1097,6 +1096,5 @@ window.addEventListener("load", ()=>{
     };
 
     const core = new Core(new InitScene());
-    console.log("running");
     core.initialize(config);
 });
